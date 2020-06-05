@@ -1,0 +1,47 @@
+---
+- hosts: localhost
+
+  vars:
+    instance_type: t2.micro
+    security_group: SGfrom_Ansible
+    image: ami-01d025118d8e760db
+    region: us-east-1
+    keypair: DevKey
+    count: 1
+
+  tasks:
+    - name: first set up a security group
+      local_action:
+        module: ec2_group
+        name: "{{ security_group }}"
+        description: security group created from ansible playbook
+        region: "{{ region }}"
+        rules:
+            - proto: tcp
+              from_port: 22
+              to_port: 22
+              cidr_ip: 0.0.0.0/0
+            - proto: tcp
+              from_port: 80
+              to_port: 80
+              cidr_ip: 0.0.0.0/0
+        rules egress:
+            - proto: all
+              cidr_ip: 0.0.0.0/0
+    - name: launch new ec2 instance
+      local_action: ec2
+                    group={{ security_group }}
+                    instance_type={{ instance_type }}
+                    image={{ image }}
+                    wait=true
+                    region={{ region }}
+                    keypair={{ keypair }}
+                    count={{ count }}
+      register: ec2
+
+    - name: wait for ec2 to spin up and ready for ssh access
+      local_action: wait_for
+                    host={{ item.public_ip }}
+                    port=22
+                    state=started
+      with_items: "{{ ec2.instances }}"
